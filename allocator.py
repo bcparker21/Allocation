@@ -50,6 +50,10 @@ df.drop(df.columns.difference(['stop_id','annual_hours']), 1, inplace=True)
 df=pd.merge(stops,df,on='stop_id')
 df.index
 
+# TODO: Spatial join with City Limits shapefile
+
+# TODO: Aggregate by City
+
 # Export
 folder_name=str(os.path.basename(GTFS_Location0))
 filename="annual_hours_by_stop_{}.csv".format(folder_name)
