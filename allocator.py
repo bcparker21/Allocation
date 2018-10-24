@@ -1,13 +1,13 @@
-#!/usr/bin/env python
-# coding: utf-8
-
 import pandas as pd
 import datetime
 import numpy as np
 import os, subprocess
+import geopandas as gpd
+from shapely.geometry import Point
+pd.options.display.float_format='{:,.1f}'.format
 
 # Get GTFS Directory Location
-GTFS_Location0=raw_input("Input Folder Path: ")
+GTFS_Location0=raw_input("Input Folder Path: ").rstrip()
 GTFS_Location=GTFS_Location0+"/"
 
 # Read in data
@@ -16,6 +16,9 @@ stops=pd.read_csv(GTFS_Location+'stops.txt')
 trips=pd.read_csv(GTFS_Location+'trips.txt')
 routes=pd.read_csv(GTFS_Location+'routes.txt')
 calendar=pd.read_csv(GTFS_Location+'calendar.txt')
+city_limits=gpd.read_file("/Users/brianparker/Work/Allocation/AllJurisdictions/AllJurisdictions.shp")
+city_limits=city_limits.to_crs(epsg=4326)
+print(city_limits.crs)
 
 # Merge stuff
 stop_times_stops=pd.merge(stop_times,stops)
@@ -50,12 +53,23 @@ df.drop(df.columns.difference(['stop_id','annual_hours']), 1, inplace=True)
 df=pd.merge(stops,df,on='stop_id')
 df.index
 
-# TODO: Spatial join with City Limits shapefile
+# Convert df to geometry
+df['Coordinates']=list(zip(df.stop_lon,df.stop_lat))
+df['Coordinates']=df['Coordinates'].apply(Point)
+gdf=gpd.GeoDataFrame(df,crs={'init':'epsg:4326','no_defs':True},geometry='Coordinates')
+print(gdf.crs)
 
-# TODO: Aggregate by City
+# Spatial join with City Limits shapefile
+annual_hours_cities=gpd.sjoin(gdf,city_limits)
+annual_hours_cities.drop(annual_hours_cities.columns.difference(['stop_id','stop_name','annual_hours','CITY']),1,inplace=True)
+
+# Aggregate by City
+annual_hours_cities=annual_hours_cities.groupby(['CITY'])['annual_hours'].sum().reset_index(name='annual_hours')
+annual_hours_cities['percentage']=(annual_hours_cities['annual_hours']/annual_hours_cities['annual_hours'].sum())*100
+print(annual_hours_cities)
 
 # Export
 folder_name=str(os.path.basename(GTFS_Location0))
-filename="annual_hours_by_stop_{}.csv".format(folder_name)
-df.to_csv(filename,index=False)
+filename="annual_hours_by_city_{}.csv".format(folder_name)
+# annual_hours_cities.to_csv(filename,index=False)
 print('done!')
